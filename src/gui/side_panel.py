@@ -27,7 +27,8 @@ class NodeListWidget(QListWidget):
             {"name": "NAND Gate", "type": "nand"},
             {"name": "NOR Gate", "type": "nor"},
             {"name": "XOR Gate", "type": "xor"},
-            {"name": "XNOR Gate", "type": "xnor"}
+            {"name": "XNOR Gate", "type": "xnor"},
+            {"name": "Write Output", "type": "file_output"}  # Added this line
         ]
         
         for node in node_types:
