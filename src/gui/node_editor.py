@@ -137,6 +137,23 @@ class NodeEditorView(QGraphicsView):
         if self.connecting and self.temp_connection:
             # Update temporary connection endpoint
             self.temp_connection.end_pos = self.mapToScene(event.pos())
+            
+            # Highlight potential target socket
+            hover_socket = self.find_socket_at_position(event.pos())
+            if hover_socket and hover_socket != self.start_socket:
+                # Visual feedback for valid/invalid connection
+                valid = ((self.start_socket.socket_type == Socket.TYPE_OUTPUT and 
+                         hover_socket.socket_type == Socket.TYPE_INPUT) or
+                        (self.start_socket.socket_type == Socket.TYPE_INPUT and 
+                         hover_socket.socket_type == Socket.TYPE_OUTPUT))
+                
+                if valid:
+                    self.temp_connection.pen.setColor(QColor(100, 255, 100))
+                else:
+                    self.temp_connection.pen.setColor(QColor(255, 100, 100))
+            else:
+                self.temp_connection.pen.setColor(QColor(200, 200, 200))
+                
             self.temp_connection.update()
         super().mouseMoveEvent(event)
     

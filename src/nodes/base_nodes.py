@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import QGraphicsItem, QGraphicsTextItem
-from PyQt5.QtCore import Qt, QRectF, QPointF
+from PyQt5.QtCore import Qt, QRectF, QPointF, QLineF
 from PyQt5.QtGui import QPen, QBrush, QColor, QFont, QPainter, QPainterPath
 
 class Socket:
@@ -16,6 +16,8 @@ class Socket:
         self.connections = []
         self.value = False
         self.radius = 6
+        self.hit_radius = 20  # Increased from 12 to 20 for easier connections
+        self.hover_state = False  # Track if socket is being hovered
         
         # Calculate position
         self.calculate_socket_position()
@@ -34,10 +36,22 @@ class Socket:
             self.position = QPointF(self.node.width, self.node.title_height + 20 + self.index * 20)
 
     def hitTest(self, pos):
-        """Test if position hits this socket"""
+        """Test if position hits this socket with improved detection logic"""
         socket_pos = self.get_position()
-        distance = (pos - socket_pos).manhattanLength()
-        return distance < self.radius * 2
+        # Use Euclidean distance for more natural feel
+        dx = pos.x() - socket_pos.x()
+        dy = pos.y() - socket_pos.y()
+        distance = (dx * dx + dy * dy) ** 0.5
+        
+        # Update hover state for visual feedback
+        old_hover_state = self.hover_state
+        self.hover_state = distance < self.hit_radius
+        
+        # If hover state changed, repaint the node
+        if old_hover_state != self.hover_state:
+            self.node.update()
+            
+        return self.hover_state
 
 class Connection(QGraphicsItem):
     """Connection between nodes"""
@@ -72,6 +86,10 @@ class Connection(QGraphicsItem):
             end_socket.value = start_socket.value
             end_socket.node.calculate_output()
         
+        # Add highlighting state
+        self.hovered = False
+        self.setAcceptHoverEvents(True)  # Enable hover events
+        
     def update_positions(self):
         """Update the position of the line"""
         if self.start_socket:
@@ -98,8 +116,8 @@ class Connection(QGraphicsItem):
         ).adjusted(-10, -10, 10, 10)
     
     def paint(self, painter, option, widget=None):
-        """Draw the connection line"""
-        if not self.start_socket or not self.end_socket:
+        """Draw the connection line with improved visibility"""
+        if not self.start_socket and not self.end_socket:
             return
             
         # Draw bezier curve
@@ -118,15 +136,91 @@ class Connection(QGraphicsItem):
         
         path.cubicTo(control1, control2, self.end_pos)
         
-        # Set color based on value being transmitted
+        # Draw glow effect when hovered
+        if self.hovered:
+            glow_pen = QPen(QColor(255, 255, 255, 100), 6)
+            painter.setPen(glow_pen)
+            painter.drawPath(path)
+        
+        # Set wire color based on value and state
         if self.start_socket and hasattr(self.start_socket, 'value'):
             if self.start_socket.value:
-                self.pen.setColor(QColor(Qt.green))
+                color = QColor(0, 255, 0) if not self.hovered else QColor(100, 255, 100)
             else:
-                self.pen.setColor(QColor(Qt.darkGreen))
+                color = QColor(0, 100, 0) if not self.hovered else QColor(0, 150, 0)
+        else:
+            color = QColor(200, 200, 200) if not self.hovered else QColor(255, 255, 255)
         
+        self.pen.setColor(color)
         painter.setPen(self.pen)
         painter.drawPath(path)
+        
+        # Draw direction indicators
+        self._draw_direction_arrow(painter, path)
+    
+    def _draw_direction_arrow(self, painter, path):
+        """Draw small arrow indicating signal flow direction"""
+        if not self.start_socket or not self.end_socket:
+            return
+            
+        # Get point at middle of path
+        percent = 0.5
+        point = path.pointAtPercent(percent)
+        angle = path.angleAtPercent(percent)
+        
+        # Draw arrow
+        painter.save()
+        painter.translate(point)
+        painter.rotate(-angle)
+        
+        arrow_size = 8
+        painter.drawLines([
+            QLineF(0, 0, -arrow_size, -arrow_size/2),
+            QLineF(0, 0, -arrow_size, arrow_size/2)
+        ])
+        painter.restore()
+    
+    def hoverEnterEvent(self, event):
+        """Handle hover enter event"""
+        self.hovered = True
+        self.update()
+    
+    def hoverLeaveEvent(self, event):
+        """Handle hover leave event"""
+        self.hovered = False
+        self.update()
+        
+    def find_nearest_socket(self, scene_pos, socket_type):
+        """Find the nearest socket within range to snap to
+        
+        Args:
+            scene_pos: Current position in scene coordinates
+            socket_type: Type of socket to find (input or output)
+            
+        Returns:
+            Nearest Socket object or None if none found in range
+        """
+        nearest_socket = None
+        min_distance = float('inf')
+        snap_radius = 30  # Maximum distance for snapping
+        
+        # Get all items in the scene
+        for item in self.scene.items():
+            if isinstance(item, Node):
+                # Check appropriate sockets based on type
+                sockets_to_check = item.input_sockets if socket_type == Socket.TYPE_INPUT else item.output_sockets
+                
+                for socket in sockets_to_check:
+                    socket_pos = socket.get_position()
+                    dx = socket_pos.x() - scene_pos.x()
+                    dy = socket_pos.y() - scene_pos.y()
+                    distance = (dx * dx + dy * dy) ** 0.5
+                    
+                    if distance < snap_radius and distance < min_distance:
+                        min_distance = distance
+                        nearest_socket = socket
+        
+        return nearest_socket
 
 class Node(QGraphicsItem):
     """Base class for all nodes in the logic gate simulator"""
@@ -224,15 +318,31 @@ class Node(QGraphicsItem):
         self._draw_sockets(painter)
     
     def _draw_sockets(self, painter):
-        """Draw input and output sockets"""
+        """Draw input and output sockets with hover highlight"""
         # Draw input sockets
         for socket in self.input_sockets:
             x = int(socket.position.x())
             y = int(socket.position.y())
             radius = int(socket.radius)
             
+            # Add glow effect for hover
+            if socket.hover_state:
+                painter.setPen(Qt.NoPen)
+                painter.setBrush(QBrush(QColor(255, 255, 255, 80)))
+                painter.drawEllipse(x - radius*2, y - radius*2, radius * 4, radius * 4)
+            
             painter.setPen(QPen(Qt.black, 1))
-            painter.setBrush(QBrush(Qt.red if socket.value else Qt.darkRed))
+            
+            # Socket color depending on value
+            socket_color = Qt.red if socket.value else Qt.darkRed
+            # Brighten if hovered
+            if socket.hover_state:
+                if socket.value:
+                    socket_color = QColor(255, 100, 100)  # Brighter red
+                else:
+                    socket_color = QColor(180, 60, 60)    # Brighter dark red
+                    
+            painter.setBrush(QBrush(socket_color))
             painter.drawEllipse(x - radius, y - radius, radius * 2, radius * 2)
         
         # Draw output sockets
@@ -241,8 +351,24 @@ class Node(QGraphicsItem):
             y = int(socket.position.y())
             radius = int(socket.radius)
             
+            # Add glow effect for hover
+            if socket.hover_state:
+                painter.setPen(Qt.NoPen)
+                painter.setBrush(QBrush(QColor(255, 255, 255, 80)))
+                painter.drawEllipse(x - radius*2, y - radius*2, radius * 4, radius * 4)
+            
             painter.setPen(QPen(Qt.black, 1))
-            painter.setBrush(QBrush(Qt.green if socket.value else Qt.darkGreen))
+            
+            # Socket color depending on value
+            socket_color = Qt.green if socket.value else Qt.darkGreen
+            # Brighten if hovered
+            if socket.hover_state:
+                if socket.value:
+                    socket_color = QColor(100, 255, 100)  # Brighter green
+                else:
+                    socket_color = QColor(60, 180, 60)    # Brighter dark green
+                    
+            painter.setBrush(QBrush(socket_color))
             painter.drawEllipse(x - radius, y - radius, radius * 2, radius * 2)
     
     def _calculate(self):

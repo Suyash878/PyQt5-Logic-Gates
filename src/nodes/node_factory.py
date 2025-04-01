@@ -1,5 +1,5 @@
 from src.nodes.base_nodes import Node
-from PyQt5.QtWidgets import QLineEdit
+from PyQt5.QtWidgets import QLineEdit, QPushButton
 from PyQt5.QtCore import Qt
 
 class NodeFactory:
@@ -123,36 +123,60 @@ class OutputNode(Node):
 class FileOutputNode(Node):
     """Output node that writes result to file"""
     def __init__(self, scene):
-        super().__init__(scene, title="File Output", inputs=1, outputs=0)
+        super().__init__(scene, title="Write Output", inputs=1, outputs=0)
         
-        # Add file path field
-        self.file_path = QLineEdit()
-        self.file_path.setFixedSize(100, 25)
-        self.file_path.setText("output.txt")
-        self.file_path.setStyleSheet("""
-            QLineEdit {
+        # Add save button
+        self.save_button = QPushButton("Save to File")
+        self.save_button.setFixedSize(80, 25)
+        self.save_button.setStyleSheet("""
+            QPushButton {
                 background-color: #2b2b2b;
                 color: white;
                 border: 1px solid #3f3f3f;
                 border-radius: 3px;
                 padding: 2px;
             }
+            QPushButton:hover {
+                background-color: #3b3b3b;
+            }
+            QPushButton:pressed {
+                background-color: #1b1b1b;
+            }
         """)
+        self.save_button.clicked.connect(self._save_to_file)
         
-        # Add to scene
-        proxy = scene.addWidget(self.file_path)
+        # Add button to scene
+        proxy = scene.addWidget(self.save_button)
         proxy.setParentItem(self)
-        proxy.setPos(20, 30)
+        proxy.setPos(35, 40)  # Center the button in node
+        
+    def _save_to_file(self):
+        """Save output value to file"""
+        if self.input_sockets:
+            try:
+                with open("output.txt", "w") as f:
+                    value = "1" if self.input_sockets[0].value else "0"
+                    f.write(value)
+                print(f"Output saved to output.txt: {value}")
+            except Exception as e:
+                print(f"Error writing to file: {str(e)}")
 
     def calculate_output(self):
-        """Write output to file"""
+        """Handle input value changes"""
+        # Optional: Auto-save on input change
         if self.input_sockets:
-            value = self.input_sockets[0].value
-            try:
-                with open(self.file_path.text(), 'w') as f:
-                    f.write("1" if value else "0")
-            except:
-                print(f"Error writing to file {self.file_path.text()}")
+            self.save_button.setStyleSheet("""
+                QPushButton {
+                    background-color: #2b2b2b;
+                    color: white;
+                    border: 1px solid #3f3f3f;
+                    border-radius: 3px;
+                    padding: 2px;
+                }
+                QPushButton:hover {
+                    background-color: #3b3b3b;
+                }
+            """)
 
 # Logic gate nodes
 class AndNode(Node):
