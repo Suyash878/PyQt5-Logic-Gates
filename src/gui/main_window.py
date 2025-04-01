@@ -5,6 +5,7 @@ from src.gui.node_editor import NodeEditorView
 from src.gui.side_panel import SidePanel
 from src.nodes.node_factory import NodeFactory
 from src.nodes.base_nodes import Connection, Node, Socket
+from src.gui.operations import NodeOperations
 import json
 import os
 
@@ -24,8 +25,8 @@ class MainWindow(QMainWindow):
         self._setup_actions()
         self._setup_menus()
         
-        # # Track file paths for each tab
-        # self.tab_file_paths = {}
+        # Initialize operations
+        self.operations = NodeOperations(self)
         
     def _setup_ui(self):
         """Set up the user interface"""
@@ -72,11 +73,22 @@ class MainWindow(QMainWindow):
         
         # Edit actions
         self.action_undo = QAction("Undo", self)
+        self.action_undo.setShortcut("Ctrl+Z")
+        
         self.action_redo = QAction("Redo", self)
+        self.action_redo.setShortcut("Ctrl+Shift+Z")
+        
         self.action_cut = QAction("Cut", self)
+        self.action_cut.setShortcut("Ctrl+X")
+        
         self.action_copy = QAction("Copy", self)
+        self.action_copy.setShortcut("Ctrl+C")
+        
         self.action_paste = QAction("Paste", self)
+        self.action_paste.setShortcut("Ctrl+V")
+        
         self.action_delete = QAction("Delete", self)
+        self.action_delete.setShortcut("Delete")
         
         # Window actions
         self.action_change_theme = QAction("Change Theme", self)
