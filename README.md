@@ -2,6 +2,8 @@
 
 A visual node-based digital logic circuit simulator built with PyQt5.
 
+🔗 **Repository**: [https://github.com/Suyash878/PyQt5-Logic-Gates.git](https://github.com/Suyash878/PyQt5-Logic-Gates.git)
+
 ## Table of Contents
 - [Overview](#overview)
 - [Screenshots](#screenshots)
@@ -29,7 +31,7 @@ The Logic Gate Simulator provides an intuitive interface for creating and simula
 - Multiple logic gates (AND, OR, NOT, NAND, NOR, XOR, XNOR)
 - Input/Output nodes with state visualization
 - Grid-based layout with snapping
-
+    
 ### Advanced Features 🛠
 - File Operations
   - Save/Load circuits
