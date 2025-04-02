@@ -17,16 +17,10 @@ The Logic Gate Simulator provides an intuitive interface for creating and simula
 
 ## Screenshots
 ### Main Interface
-![Main Interface](screenshots/main.png)
+![alt text](image-3.png)
 
 ### Dark Theme
-![Dark Theme](screenshots/dark_theme.png)
-
-### Light Theme
-![Light Theme](screenshots/light_theme.png)
-
-### Example Circuit
-![Example Circuit](screenshots/example_circuit.png)
+![alt text](image-4.png)
 
 ## Features
 ### Core Functionality ⚡
@@ -59,7 +53,7 @@ Before running the simulator, ensure you have:
 ## Installation
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/logic-gate-simulator.git
+git clone https://github.com/Suyash878/PyQt5-Logic-Gates.git
 cd logic-gate-simulator
 ```
 

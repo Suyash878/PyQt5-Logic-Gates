@@ -5,14 +5,14 @@ from PyQt5.QtWidgets import QApplication
 class ThemeManager:
     """Manages application themes including light and dark modes"""
     
-    # Theme constants
+   
     LIGHT_THEME = "light"
     DARK_THEME = "dark"
     
-    # Define color schemes
+   
     THEMES = {
         LIGHT_THEME: {
-            # Application colors
+           
             "window": QColor(240, 240, 240),
             "window_text": QColor(0, 0, 0),
             "base": QColor(255, 255, 255),
@@ -26,7 +26,7 @@ class ThemeManager:
             "link": QColor(0, 0, 255),
             "link_visited": QColor(128, 0, 128),
             
-            # Node editor colors
+            
             "grid_line": QColor(200, 200, 200, 100),
             "grid_bg": QColor(255, 255, 255),
             "node_bg": QColor(240, 240, 240),
@@ -40,18 +40,18 @@ class ThemeManager:
             "selection_box": QColor(42, 130, 218, 100),
             "selection_border": QColor(42, 130, 218),
             
-            # Socket type specific colors
+            
             "socket_input_color": QColor(255, 100, 100),
             "socket_output_color": QColor(100, 255, 100),
             
-            # Connection colors
+        
             "connection_valid": QColor(100, 255, 100),
             "connection_invalid": QColor(255, 100, 100),
             "connection_default": QColor(200, 200, 200),
         },
         
         DARK_THEME: {
-            # Application colors
+           
             "window": QColor(45, 45, 45),
             "window_text": QColor(212, 212, 212),
             "base": QColor(30, 30, 30),
@@ -65,7 +65,7 @@ class ThemeManager:
             "link": QColor(100, 160, 255),
             "link_visited": QColor(180, 120, 220),
             
-            # Node editor colors
+           
             "grid_line": QColor(60, 60, 60, 100),
             "grid_bg": QColor(30, 30, 30),
             "node_bg": QColor(53, 53, 53),
@@ -78,12 +78,11 @@ class ThemeManager:
             "connection_line": QColor(180, 180, 180),
             "selection_box": QColor(42, 130, 218, 80),
             "selection_border": QColor(42, 130, 218),
-            
-            # Socket type specific colors
+       
             "socket_input_color": QColor(255, 100, 100),
             "socket_output_color": QColor(100, 255, 100),
             
-            # Connection colors
+       
             "connection_valid": QColor(100, 255, 100),
             "connection_invalid": QColor(255, 100, 100),
             "connection_default": QColor(180, 180, 180),
@@ -95,20 +94,20 @@ class ThemeManager:
         """Get a specific color from the theme"""
         if theme_name in cls.THEMES and color_key in cls.THEMES[theme_name]:
             return cls.THEMES[theme_name][color_key]
-        return QColor(0, 0, 0)  # Default black if not found
+        return QColor(0, 0, 0)  
     
     @classmethod
     def apply_theme(cls, app, theme_name):
         """Apply the selected theme to the application"""
         if theme_name not in cls.THEMES:
-            theme_name = cls.DARK_THEME  # Default to dark theme if invalid
+            theme_name = cls.DARK_THEME  
         
         theme = cls.THEMES[theme_name]
         
-        # Create a palette for the application
+   
         palette = QPalette()
         
-        # Set standard palette colors
+
         palette.setColor(QPalette.Window, theme["window"])
         palette.setColor(QPalette.WindowText, theme["window_text"])
         palette.setColor(QPalette.Base, theme["base"])
@@ -122,15 +121,15 @@ class ThemeManager:
         palette.setColor(QPalette.Link, theme["link"])
         palette.setColor(QPalette.LinkVisited, theme["link_visited"])
         
-        # Apply the palette to application
+
         app.setPalette(palette)
         
-        # Store the theme in settings
+
         settings = QSettings("LogicGateSimulator", "preferences")
         settings.setValue("theme", theme_name)
         settings.sync()
         
-        # Return theme name for reference
+
         return theme_name
     
     @classmethod
@@ -174,12 +173,11 @@ class ThemeManager:
         """Get colors for drawing sockets based on their type"""
         if theme_name is None:
             theme_name = cls.get_current_theme()
-        
-        # Get type-specific socket color
+     
         from src.nodes.base_nodes import Socket
         if socket_type == Socket.TYPE_INPUT:
             socket_color = cls.get_theme_color(theme_name, "socket_input_color")
-        else:  # Socket.TYPE_OUTPUT
+        else: 
             socket_color = cls.get_theme_color(theme_name, "socket_output_color")
         
         return {
@@ -194,12 +192,12 @@ class ThemeManager:
         if theme_name is None:
             theme_name = cls.get_current_theme()
         
-        # Select color based on connection state
+ 
         if state == "valid":
             color = cls.get_theme_color(theme_name, "connection_valid")
         elif state == "invalid":
             color = cls.get_theme_color(theme_name, "connection_invalid")
-        else:  # default
+        else: 
             color = cls.get_theme_color(theme_name, "connection_default")
         
         pen = QPen(color)

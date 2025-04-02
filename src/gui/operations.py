@@ -21,13 +21,13 @@ class AddNodeCommand(NodeEditorCommand):
         self.node_id = None
         
     def redo(self):
-        # Create node and store its ID
+       
         node = NodeFactory.create_node(self.scene, self.node_type)
         node.setPos(self.position)
         self.node_id = id(node)
         
     def undo(self):
-        # Find and remove node by ID
+        
         for item in self.scene.items():
             if isinstance(item, Node) and id(item) == self.node_id:
                 self.scene.removeItem(item)
@@ -41,7 +41,7 @@ class RemoveNodeCommand(NodeEditorCommand):
         self.node_data = self._serialize_node(node)
         self.connections_data = []
         
-        # Store all connections to/from this node
+        
         for item in self.scene.items():
             if isinstance(item, Connection):
                 if item.start_socket and item.start_socket.node == node:
@@ -79,23 +79,23 @@ class RemoveNodeCommand(NodeEditorCommand):
         }
         
     def redo(self):
-        # Remove all connections to/from this node
+  
         for item in list(self.scene.items()):
             if isinstance(item, Connection):
                 if (item.start_socket and item.start_socket.node == self.node) or \
                    (item.end_socket and item.end_socket.node == self.node):
                     self.scene.removeItem(item)
                     
-        # Remove the node
+      
         self.scene.removeItem(self.node)
     
     def undo(self):
-        # Recreate the node
+      
         node = NodeFactory.create_node(self.scene, self.node_data['type'])
         node.setPos(self.node_data['pos_x'], self.node_data['pos_y'])
         node.title = self.node_data['title']
         
-        # Restore socket values
+        
         for i, value in enumerate(self.node_data['socket_values']['inputs']):
             if i < len(node.input_sockets):
                 node.input_sockets[i].value = value
@@ -104,10 +104,8 @@ class RemoveNodeCommand(NodeEditorCommand):
             if i < len(node.output_sockets):
                 node.output_sockets[i].value = value
         
-        # Recreate connections
-        # Note: This is a simplified approach and might not perfectly recreate all connections
-        # A more robust implementation would track node IDs and socket indices
-        self.node = node  # Update reference to new node
+     
+        self.node = node 
 
 class AddConnectionCommand(NodeEditorCommand):
     """Command to add a connection between nodes"""
@@ -118,10 +116,10 @@ class AddConnectionCommand(NodeEditorCommand):
         self.connection = None
         
     def redo(self):
-        # Create the connection
+       
         self.connection = Connection(self.scene, self.output_socket, self.input_socket)
         
-        # Propagate value
+       
         self.input_socket.value = self.output_socket.value
         self.input_socket.node.calculate_output()
         
@@ -141,10 +139,10 @@ class RemoveConnectionCommand(NodeEditorCommand):
         self.scene.removeItem(self.connection)
         
     def undo(self):
-        # Recreate the connection
+        
         self.connection = Connection(self.scene, self.output_socket, self.input_socket)
         
-        # Propagate value
+     
         self.input_socket.value = self.output_socket.value
         self.input_socket.node.calculate_output()
 
@@ -172,10 +170,10 @@ class NodeClipboard:
             'connections': []
         }
         
-        # Store mapping of original node IDs to indices
+        
         node_mapping = {}
         
-        # Serialize nodes
+       
         for i, node in enumerate(nodes):
             node_data = {
                 'type': node.__class__.__name__,
@@ -190,12 +188,12 @@ class NodeClipboard:
             data['nodes'].append(node_data)
             node_mapping[id(node)] = i
         
-        # Serialize connections between copied nodes
+  
         for node in nodes:
             for socket in node.output_sockets:
                 for conn in socket.connections:
                     if conn.end_socket and conn.end_socket.node in nodes:
-                        # Include only connections where both nodes are in selection
+                       
                         conn_data = {
                             'start_node_index': node_mapping[id(socket.node)],
                             'start_socket_index': socket.index,
@@ -209,20 +207,20 @@ class NodeClipboard:
     @staticmethod
     def deserialize_nodes(scene, data, position_offset=QPointF(20, 20)):
         """Recreate nodes from serialized data"""
-        # List to store created nodes
+   
         created_nodes = []
         
-        # Create nodes
+     
         for node_data in data['nodes']:
             node = NodeFactory.create_node(scene, node_data['type'])
             
-            # Apply position offset for paste operation
+         
             node.setPos(node_data['pos_x'] + position_offset.x(), 
                        node_data['pos_y'] + position_offset.y())
             
             node.title = node_data['title']
             
-            # Set socket values
+
             for i, value in enumerate(node_data['socket_values']['inputs']):
                 if i < len(node.input_sockets):
                     node.input_sockets[i].value = value
@@ -233,7 +231,7 @@ class NodeClipboard:
                     
             created_nodes.append(node)
         
-        # Create connections between newly created nodes
+      
         for conn_data in data['connections']:
             if (0 <= conn_data['start_node_index'] < len(created_nodes) and
                 0 <= conn_data['end_node_index'] < len(created_nodes)):
@@ -247,10 +245,10 @@ class NodeClipboard:
                     output_socket = start_node.output_sockets[conn_data['start_socket_index']]
                     input_socket = end_node.input_sockets[conn_data['end_socket_index']]
                     
-                    # Create connection
+                  
                     Connection(scene, output_socket, input_socket)
                     
-                    # Propagate value
+                
                     input_socket.value = output_socket.value
                     input_socket.node.calculate_output()
         
@@ -262,11 +260,11 @@ class NodeOperations:
         self.main_window = main_window
         self.undo_stack = QUndoStack(main_window)
         
-        # Connect undo/redo actions
+   
         self.main_window.action_undo.triggered.connect(self.undo_stack.undo)
         self.main_window.action_redo.triggered.connect(self.undo_stack.redo)
         
-        # Connect edit actions
+   
         self.main_window.action_cut.triggered.connect(self.cut)
         self.main_window.action_copy.triggered.connect(self.copy)
         self.main_window.action_paste.triggered.connect(self.paste)
@@ -307,20 +305,20 @@ class NodeOperations:
         if not selected_nodes:
             return False
             
-        # Serialize nodes
+      
         data = NodeClipboard.serialize_nodes(selected_nodes)
         
-        # Create mime data
+        
         mime_data = QMimeData()
         
-        # Convert to JSON string
+        
         import json
         json_data = json.dumps(data)
         
-        # Set mime data
+  
         mime_data.setText(json_data)
         
-        # Set to clipboard
+
         from PyQt5.QtWidgets import QApplication
         QApplication.clipboard().setMimeData(mime_data)
         
@@ -332,7 +330,7 @@ class NodeOperations:
         if not editor:
             return False
             
-        # Get clipboard data
+
         clipboard = QApplication.clipboard()
         mime_data = clipboard.mimeData()
         
@@ -340,21 +338,21 @@ class NodeOperations:
             return False
             
         try:
-            # Parse JSON data
+          
             import json
             data = json.loads(mime_data.text())
             
-            # Calculate cursor position in scene coordinates
+           
             cursor_pos = editor.mapToScene(editor.mapFromGlobal(QCursor().pos()))
             
-            # Deserialize nodes at cursor position
+            
             created_nodes = NodeClipboard.deserialize_nodes(
                 editor.scene, 
                 data, 
                 QPointF(cursor_pos.x(), cursor_pos.y())
             )
             
-            # Select pasted nodes
+          
             editor.scene.clearSelection()
             for node in created_nodes:
                 node.setSelected(True)
@@ -370,16 +368,14 @@ class NodeOperations:
         editor = self.get_current_editor()
         if not editor:
             return
-            
-        # Get selected items
+
         selected_connections = self.get_selected_connections()
         selected_nodes = self.get_selected_nodes()
-        
-        # Create commands for each connection
+      
         for connection in selected_connections:
             self.undo_stack.push(RemoveConnectionCommand(editor, connection))
             
-        # Create commands for each node
+
         for node in selected_nodes:
             self.undo_stack.push(RemoveNodeCommand(editor, node))
 
