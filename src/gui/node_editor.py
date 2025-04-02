@@ -3,6 +3,7 @@ from PyQt5.QtCore import Qt, QPoint, QPointF, QRectF
 from PyQt5.QtGui import QPainter, QPen, QBrush, QColor, QPainterPath
 from src.nodes.base_nodes import Connection, Socket, Node
 from src.nodes.node_factory import NodeFactory
+from src.gui.theme_manager import ThemeManager
 
 class NodeEditorScene(QGraphicsScene):
     """Scene for the node editor"""
@@ -17,6 +18,10 @@ class NodeEditorScene(QGraphicsScene):
         self.connecting = False
         self.temp_connection = None
         self.start_socket = None
+        
+        # Set background color based on theme
+        theme = ThemeManager.get_current_theme()
+        self.setBackgroundBrush(ThemeManager.get_theme_color(theme, "grid_bg"))
     
     def drawBackground(self, painter, rect):
         """Draw grid in the background"""
@@ -26,9 +31,8 @@ class NodeEditorScene(QGraphicsScene):
         left = int(rect.left()) - (int(rect.left()) % self.grid_size)
         top = int(rect.top()) - (int(rect.top()) % self.grid_size)
         
-        # Draw grid lines
-        gridPen = QPen(QColor(60, 60, 60, 100))
-        gridPen.setWidth(1)
+        # Get grid pen from theme manager
+        gridPen = ThemeManager.get_grid_pen()
         painter.setPen(gridPen)
         
         # Draw horizontal lines
@@ -38,6 +42,18 @@ class NodeEditorScene(QGraphicsScene):
         # Draw vertical lines
         for y in range(top, int(rect.bottom()), self.grid_size):
             painter.drawLine(QPointF(rect.left(), y), QPointF(rect.right(), y))
+    
+    def update_theme(self):
+        """Update scene appearance when theme changes"""
+        theme = ThemeManager.get_current_theme()
+        self.setBackgroundBrush(ThemeManager.get_theme_color(theme, "grid_bg"))
+        
+        # Update all nodes and connections
+        for item in self.items():
+            if hasattr(item, 'update_theme'):
+                item.update_theme()
+        
+        self.update()
 
 class NodeEditorView(QGraphicsView):
     """View for the node editor"""
@@ -147,12 +163,11 @@ class NodeEditorView(QGraphicsView):
                         (self.start_socket.socket_type == Socket.TYPE_INPUT and 
                          hover_socket.socket_type == Socket.TYPE_OUTPUT))
                 
-                if valid:
-                    self.temp_connection.pen.setColor(QColor(100, 255, 100))
-                else:
-                    self.temp_connection.pen.setColor(QColor(255, 100, 100))
+                # Get appropriate pen from theme manager
+                state = "valid" if valid else "invalid"
+                self.temp_connection.pen = ThemeManager.get_connection_pen(state)
             else:
-                self.temp_connection.pen.setColor(QColor(200, 200, 200))
+                self.temp_connection.pen = ThemeManager.get_connection_pen("default")
                 
             self.temp_connection.update()
         super().mouseMoveEvent(event)
@@ -228,3 +243,8 @@ class NodeEditorView(QGraphicsView):
             
             # Accept the action
             event.acceptProposedAction()
+    
+    def update_theme(self):
+        """Update the view when theme changes"""
+        if self.scene:
+            self.scene.update_theme()

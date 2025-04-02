@@ -2,6 +2,9 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QLabel, QListWidget,
                             QListWidgetItem, QAbstractItemView)
 from PyQt5.QtCore import Qt, QSize, QMimeData
 from PyQt5.QtGui import QDrag, QPixmap, QPainter, QColor
+import os
+base_dir = os.path.dirname(os.path.abspath(__file__))
+icon_path = os.path.join(base_dir, "assets", "images.png")
 
 class NodeListWidget(QListWidget):
     """Widget that displays the list of available nodes"""
@@ -19,7 +22,7 @@ class NodeListWidget(QListWidget):
     def _add_node_items(self):
         """Add items to the list"""
         node_types = [
-            {"name": "Input", "type": "input"},
+            {"name": "Input", "type": "input", "icon": os.path.join(base_dir, "assets", "images.png")},
             {"name": "Output", "type": "output"},
             {"name": "AND Gate", "type": "and"},
             {"name": "OR Gate", "type": "or"},

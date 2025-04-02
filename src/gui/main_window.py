@@ -1,11 +1,12 @@
 from PyQt5.QtWidgets import (QMainWindow, QTabWidget, QAction, QDockWidget, 
-                            QVBoxLayout, QWidget, QMessageBox, QFileDialog)
+                            QVBoxLayout, QWidget, QMessageBox, QFileDialog, QApplication)
 from PyQt5.QtCore import Qt, QByteArray, QDataStream, QIODevice
 from src.gui.node_editor import NodeEditorView
 from src.gui.side_panel import SidePanel
 from src.nodes.node_factory import NodeFactory
 from src.nodes.base_nodes import Connection, Node, Socket
 from src.gui.operations import NodeOperations
+from src.gui.theme_manager import ThemeManager
 import json
 import os
 
@@ -27,6 +28,9 @@ class MainWindow(QMainWindow):
         
         # Initialize operations
         self.operations = NodeOperations(self)
+        
+        # Apply saved theme or default
+        self._apply_current_theme()
         
     def _setup_ui(self):
         """Set up the user interface"""
@@ -90,8 +94,9 @@ class MainWindow(QMainWindow):
         self.action_delete = QAction("Delete", self)
         self.action_delete.setShortcut("Delete")
         
-        # Window actions
-        self.action_change_theme = QAction("Change Theme", self)
+        # Theme actions
+        self.action_toggle_theme = QAction("Toggle Light/Dark Mode", self)
+        self.action_toggle_theme.setShortcut("Ctrl+T")
         
         # Connect actions
         self.action_new.triggered.connect(self._create_new_tab)
@@ -99,6 +104,15 @@ class MainWindow(QMainWindow):
         self.action_save_as.triggered.connect(self._save_as_current_tab)
         self.action_open.triggered.connect(self._open_file)
         self.action_exit.triggered.connect(self.close)
+        self.action_toggle_theme.triggered.connect(self._toggle_theme)
+        
+        # Connect edit actions
+        self.action_undo.triggered.connect(self._undo)
+        self.action_redo.triggered.connect(self._redo)
+        self.action_cut.triggered.connect(self._cut)
+        self.action_copy.triggered.connect(self._copy)
+        self.action_paste.triggered.connect(self._paste)
+        self.action_delete.triggered.connect(self._delete)
         
     def _setup_menus(self):
         """Set up the menu bars"""
@@ -124,9 +138,45 @@ class MainWindow(QMainWindow):
         self.edit_menu.addAction(self.action_paste)
         self.edit_menu.addAction(self.action_delete)
         
-        # Window menu
-        self.window_menu = self.menu_bar.addMenu("Window")
-        self.window_menu.addAction(self.action_change_theme)
+        # View menu
+        self.view_menu = self.menu_bar.addMenu("View")
+        self.view_menu.addAction(self.action_toggle_theme)
+        
+    def _apply_current_theme(self):
+        """Apply the current theme saved in settings"""
+        import sys
+        app = QApplication.instance() or QApplication(sys.argv)
+        theme = ThemeManager.get_current_theme()
+        ThemeManager.apply_theme(app, theme)
+        
+        # Update theme-specific status in the menu
+        theme_text = "Light Mode" if theme == ThemeManager.LIGHT_THEME else "Dark Mode"
+        self.action_toggle_theme.setText(f"Toggle Theme (Current: {theme_text})")
+        
+        # Update all open node editors
+        for i in range(self.tab_widget.count()):
+            editor = self.tab_widget.widget(i)
+            if hasattr(editor, 'update_theme'):
+                editor.update_theme()
+    
+    def _toggle_theme(self):
+        """Toggle between light and dark themes"""
+        import sys
+        app = QApplication.instance() or QApplication(sys.argv)
+        new_theme = ThemeManager.toggle_theme(app)
+        
+        # Update action text
+        theme_text = "Light Mode" if new_theme == ThemeManager.LIGHT_THEME else "Dark Mode"
+        self.action_toggle_theme.setText(f"Toggle Theme (Current: {theme_text})")
+        
+        # Update all open node editors
+        for i in range(self.tab_widget.count()):
+            editor = self.tab_widget.widget(i)
+            if hasattr(editor, 'update_theme'):
+                editor.update_theme()
+        
+        # Show status message
+        self.statusBar().showMessage(f"Theme changed to {theme_text}", 3000)
         
     def _create_new_tab(self):
         """Create a new tab with node editor"""
@@ -206,146 +256,260 @@ class MainWindow(QMainWindow):
             with open(file_path, 'w') as file:
                 json.dump(scene_data, file, indent=4)
                 
-            self.statusBar().showMessage(f"Saved to {file_path}", 3000)
+            # Show success message
+            self.statusBar().showMessage(f"File saved to {file_path}", 3000)
             return True
-            
         except Exception as e:
             QMessageBox.critical(self, "Save Error", f"Error saving file: {str(e)}")
             return False
     
     def _open_file(self):
-        """Open a saved circuit file"""
+        """Open a circuit file"""
         file_path, _ = QFileDialog.getOpenFileName(
-            self, 
-            "Open Circuit", 
-            "", 
+            self,
+            "Open Circuit",
+            "",
             "Logic Gate Simulator Files (*.lgs);;All Files (*)"
         )
         
-        if file_path:
-            try:
-                # Load file data
-                with open(file_path, 'r') as file:
-                    scene_data = json.load(file)
+        if not file_path:
+            return
+            
+        try:
+            # Create a new tab
+            self._create_new_tab()
+            current_tab = self.tab_widget.currentIndex()
+            
+            # Load the file into the current tab
+            self._load_from_file(file_path)
+            
+            # Update tab name and path
+            file_name = os.path.basename(file_path)
+            self.tab_widget.setTabText(current_tab, file_name)
+            self.tab_file_paths[current_tab] = file_path
+            
+            self.statusBar().showMessage(f"File opened: {file_path}", 3000)
+        except Exception as e:
+            QMessageBox.critical(self, "Open Error", f"Error opening file: {str(e)}")
+    
+    def _load_from_file(self, file_path):
+        """Load circuit from file into current editor"""
+        editor = self._get_current_editor()
+        if not editor:
+            return
+            
+        try:
+            with open(file_path, 'r') as file:
+                scene_data = json.load(file)
                 
-                # Create new tab
-                editor = NodeEditorView()
-                editor.setAcceptDrops(True)
-                
-                # Deserialize data into scene
-                self._deserialize_scene(editor.scene, scene_data)
-                
-                # Add to tab widget
-                file_name = os.path.basename(file_path)
-                tab_index = self.tab_widget.addTab(editor, file_name)
-                
-                # Set as current and store file path
-                self.tab_widget.setCurrentIndex(tab_index)
-                self.tab_file_paths[tab_index] = file_path
-                
-                self.statusBar().showMessage(f"Opened {file_path}", 3000)
-                
-            except Exception as e:
-                QMessageBox.critical(self, "Open Error", f"Error opening file: {str(e)}")
+            # Deserialize scene data
+            self._deserialize_scene(editor.scene, scene_data)
+            
+            return True
+        except Exception as e:
+            raise Exception(f"Error loading file: {str(e)}")
     
     def _serialize_scene(self, scene):
-        """Convert scene to serializable data structure"""
+        """Serialize scene data to JSON-compatible format"""
         data = {
             'nodes': [],
             'connections': []
         }
         
-        # Serialize all nodes
+        # Serialize nodes
         for item in scene.items():
             if isinstance(item, Node):
                 node_data = {
-                    'id': id(item),  # Use object ID as unique identifier
+                    'id': id(item),
                     'type': item.__class__.__name__,
                     'pos_x': item.pos().x(),
                     'pos_y': item.pos().y(),
-                    'title': item.title,
-                    'inputs': len(item.input_sockets),
-                    'outputs': len(item.output_sockets),
-                    'socket_values': {
-                        'inputs': [socket.value for socket in item.input_sockets],
-                        'outputs': [socket.value for socket in item.output_sockets]
-                    }
+                    'inputs': [],
+                    'outputs': [],
+                    'properties': item.get_properties() if hasattr(item, 'get_properties') else {}
                 }
+                
+                # Serialize input sockets
+                for socket in item.input_sockets:
+                    socket_data = {
+                        'id': id(socket),
+                        'index': socket.index,
+                        'value': socket.value
+                    }
+                    node_data['inputs'].append(socket_data)
+                
+                # Serialize output sockets
+                for socket in item.output_sockets:
+                    socket_data = {
+                        'id': id(socket),
+                        'index': socket.index,
+                        'value': socket.value
+                    }
+                    node_data['outputs'].append(socket_data)
+                
                 data['nodes'].append(node_data)
         
-        # Serialize all connections
+        # Serialize connections
         for item in scene.items():
-            if isinstance(item, Connection) and item.start_socket and item.end_socket:
-                connection_data = {
-                    'start_node': id(item.start_socket.node),
-                    'start_socket_index': item.start_socket.index,
-                    'start_socket_type': item.start_socket.socket_type,
-                    'end_node': id(item.end_socket.node),
-                    'end_socket_index': item.end_socket.index,
-                    'end_socket_type': item.end_socket.socket_type
-                }
-                data['connections'].append(connection_data)
+            if isinstance(item, Connection):
+                if item.start_socket and item.end_socket:
+                    connection_data = {
+                        'id': id(item),
+                        'start_node': id(item.start_socket.node),
+                        'start_socket': item.start_socket.index,
+                        'end_node': id(item.end_socket.node),
+                        'end_socket': item.end_socket.index
+                    }
+                    data['connections'].append(connection_data)
         
         return data
     
     def _deserialize_scene(self, scene, data):
-        """Reconstruct scene from serialized data"""
-        # Clear existing scene
+        """Deserialize scene data from JSON"""
+        # Clear current scene
         scene.clear()
         
-        # Dictionary to map node IDs to actual nodes
-        node_map = {}
+        # Dictionary to store nodes by their id for connection reconstruction
+        nodes = {}
+        node_sockets = {}
         
-        # Create nodes first
+        # Create nodes
         for node_data in data['nodes']:
-            # Create node using factory
-            node = NodeFactory.create_node(scene, node_data['type'])
+            node_type = node_data['type']
             
-            # Set position and properties
+            # Create node
+            node = NodeFactory.create_node(scene, node_type)
             node.setPos(node_data['pos_x'], node_data['pos_y'])
-            node.title = node_data['title']
             
-            # Store in map for connection creation
-            node_map[node_data['id']] = node
+            # Restore properties if available
+            if 'properties' in node_data and hasattr(node, 'set_properties'):
+                node.set_properties(node_data['properties'])
             
-            # Set socket values if available
-            if 'socket_values' in node_data:
-                for i, value in enumerate(node_data['socket_values']['inputs']):
-                    if i < len(node.input_sockets):
-                        node.input_sockets[i].value = value
-                
-                for i, value in enumerate(node_data['socket_values']['outputs']):
-                    if i < len(node.output_sockets):
-                        node.output_sockets[i].value = value
+            # Store node and socket references
+            nodes[node_data['id']] = node
+            
+            # Store socket references
+            for i, socket_data in enumerate(node_data['inputs']):
+                if i < len(node.input_sockets):
+                    node_sockets[socket_data['id']] = node.input_sockets[i]
+                    node.input_sockets[i].value = socket_data['value']
+            
+            for i, socket_data in enumerate(node_data['outputs']):
+                if i < len(node.output_sockets):
+                    node_sockets[socket_data['id']] = node.output_sockets[i]
+                    node.output_sockets[i].value = socket_data['value']
         
         # Create connections
         for conn_data in data['connections']:
-            if conn_data['start_node'] in node_map and conn_data['end_node'] in node_map:
-                start_node = node_map[conn_data['start_node']]
-                end_node = node_map[conn_data['end_node']]
+            if (conn_data['start_node'] in nodes and conn_data['end_node'] in nodes):
+                start_node = nodes[conn_data['start_node']]
+                end_node = nodes[conn_data['end_node']]
                 
-                # Get sockets
-                start_socket = None
-                end_socket = None
-                
-                if conn_data['start_socket_type'] == Socket.TYPE_INPUT:
-                    start_socket = start_node.input_sockets[conn_data['start_socket_index']]
-                else:
-                    start_socket = start_node.output_sockets[conn_data['start_socket_index']]
+                if (conn_data['start_socket'] < len(start_node.output_sockets) and 
+                    conn_data['end_socket'] < len(end_node.input_sockets)):
                     
-                if conn_data['end_socket_type'] == Socket.TYPE_INPUT:
-                    end_socket = end_node.input_sockets[conn_data['end_socket_index']]
-                else:
-                    end_socket = end_node.output_sockets[conn_data['end_socket_index']]
-                
-                # Create connection
-                if start_socket and end_socket:
-                    # Determine output and input correctly
-                    output_socket = start_socket if start_socket.socket_type == Socket.TYPE_OUTPUT else end_socket
-                    input_socket = end_socket if end_socket.socket_type == Socket.TYPE_INPUT else start_socket
+                    start_socket = start_node.output_sockets[conn_data['start_socket']]
+                    end_socket = end_node.input_sockets[conn_data['end_socket']]
                     
-                    Connection(scene, output_socket, input_socket)
-                    
-        # Calculate outputs to update the visual state
-        for node in node_map.values():
-            node.calculate_output()
+                    # Create connection
+                    conn = Connection(scene, start_socket=start_socket, end_socket=end_socket)
+        
+        # Update all nodes (propagate values)
+        for node in nodes.values():
+            if hasattr(node, 'calculate_output'):
+                node.calculate_output()
+    
+    def _undo(self):
+        """Undo the last operation"""
+        editor = self._get_current_editor()
+        if editor and hasattr(self.operations, 'undo'):
+            self.operations.undo()
+    
+    def _redo(self):
+        """Redo the last undone operation"""
+        editor = self._get_current_editor()
+        if editor and hasattr(self.operations, 'redo'):
+            self.operations.redo()
+    
+    def _cut(self):
+        """Cut selected nodes"""
+        editor = self._get_current_editor()
+        if editor and hasattr(self.operations, 'cut'):
+            self.operations.cut()
+    
+    def _copy(self):
+        """Copy selected nodes"""
+        editor = self._get_current_editor()
+        if editor and hasattr(self.operations, 'copy'):
+            self.operations.copy()
+    
+    def _paste(self):
+        """Paste copied nodes"""
+        editor = self._get_current_editor()
+        if editor and hasattr(self.operations, 'paste'):
+            self.operations.paste()
+    
+    def _delete(self):
+        """Delete selected nodes"""
+        editor = self._get_current_editor()
+        if editor and hasattr(self.operations, 'delete'):
+            self.operations.delete()
+    
+    def closeEvent(self, event):
+        """Handle application close event"""
+        # Check for unsaved changes
+        if self._has_unsaved_changes():
+            reply = QMessageBox.question(
+                self, 
+                "Unsaved Changes",
+                "You have unsaved changes. Do you want to save before exiting?",
+                QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel
+            )
+            
+            if reply == QMessageBox.Save:
+                self._save_current_tab()
+            elif reply == QMessageBox.Cancel:
+                event.ignore()
+                return
+        
+        event.accept()
+    
+    def _has_unsaved_changes(self):
+        """Check if there are any unsaved changes"""
+        # In a real implementation, this would check for actual changes
+        # For now, we'll assume tabs without saved paths have unsaved changes
+        for tab_index in range(self.tab_widget.count()):
+            if self.tab_file_paths.get(tab_index) is None:
+                return True
+        return False
+    
+    def tabCloseRequested(self, index):
+        """Handle tab close request"""
+        # Check for unsaved changes
+        if self.tab_file_paths.get(index) is None:
+            reply = QMessageBox.question(
+                self,
+                "Unsaved Tab",
+                f"Tab '{self.tab_widget.tabText(index)}' has unsaved changes. Save before closing?",
+                QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel
+            )
+            
+            if reply == QMessageBox.Save:
+                self.tab_widget.setCurrentIndex(index)
+                self._save_current_tab()
+            elif reply == QMessageBox.Cancel:
+                return
+        
+        # Close the tab
+        self.tab_widget.removeTab(index)
+        
+        # Clean up file path reference
+        if index in self.tab_file_paths:
+            del self.tab_file_paths[index]
+            
+        # Update remaining tab indices in the file paths dictionary
+        updated_paths = {}
+        for old_index, path in self.tab_file_paths.items():
+            new_index = old_index if old_index < index else old_index - 1
+            updated_paths[new_index] = path
+        self.tab_file_paths = updated_paths
