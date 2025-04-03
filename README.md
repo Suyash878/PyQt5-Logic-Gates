@@ -19,10 +19,10 @@ The Logic Gate Simulator provides an intuitive interface for creating and simula
 
 ## Screenshots
 ### Main Interface
-![alt text](image-3.png)
+![image-3](https://github.com/user-attachments/assets/1ed31232-5ae9-4b26-a59f-3029e9226ad9)
 
 ### Dark Theme
-![alt text](image-4.png)
+![image-4](https://github.com/user-attachments/assets/4b197baa-870a-4236-9e6c-4fdafdb5a48f)
 
 ## Features
 ### Core Functionality ⚡
